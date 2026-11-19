@@ -39,7 +39,21 @@ const schema = z.object({
   MAX_UPLOAD_SIZE_MB: z.coerce.number().positive().max(100).default(8),
 });
 
-const parsed = schema.safeParse(process.env);
+/**
+ * Values pasted into a hosting dashboard routinely carry a trailing newline or
+ * space, which turns a correct setting into an enum or URI that fails to parse
+ * (or, worse, a Mongo URI that fails to connect). Leading and trailing
+ * whitespace is never meaningful for anything configured here — except a
+ * password, where it could be deliberate and silently trimming it would lock
+ * the account out.
+ */
+const source = Object.fromEntries(
+  Object.entries(process.env).map(([key, value]) =>
+    typeof value === 'string' && key !== 'SUPER_ADMIN_PASSWORD' ? [key, value.trim()] : [key, value],
+  ),
+);
+
+const parsed = schema.safeParse(source);
 
 if (!parsed.success) {
   const issues = parsed.error.issues.map((i) => `  • ${i.path.join('.')}: ${i.message}`).join('\n');
