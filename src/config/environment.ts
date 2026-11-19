@@ -71,7 +71,7 @@ export const env = {
   isTest,
   port: raw.PORT,
   corsOrigins: raw.CORS_ORIGINS.split(',')
-    .map((o) => o.trim())
+    .map((o) => o.trim().replace(/\/$/, ''))
     .filter(Boolean),
 
   mongoUri: isTest ? (raw.MONGODB_URI_TEST ?? `${raw.MONGODB_URI}_test`) : raw.MONGODB_URI,

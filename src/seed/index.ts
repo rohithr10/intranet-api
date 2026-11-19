@@ -46,6 +46,7 @@ async function main(): Promise<void> {
   const roles = await seedRoles();
   const superAdmin = await seedSuperAdmin(roles.get('super-admin'));
   await seedOptions(superAdmin?.id);
+  await syncDemoMedia(superAdmin?.id);
 
   if (demo) {
     if (!superAdmin) {
@@ -216,6 +217,98 @@ async function seedTags(createdBy: string): Promise<Map<string, string>> {
  * replace — not files baked into a build. Set SEED_ASSETS_DIR to load them from
  * somewhere else.
  */
+/**
+ * Ensures demo artwork exists on the server's disk and all media URLs in MongoDB
+ * match the current host (PUBLIC_BASE_URL).
+ *
+ * When an existing MongoDB database is connected to a newly cloned server (e.g. EC2),
+ * the uploads directory on disk is initially empty. This copies missing files from
+ * seed-assets/ into uploads/ and updates stale URLs from localhost or Render to the current host.
+ */
+async function syncDemoMedia(uploadedBy?: string): Promise<void> {
+  const assetsDir = process.env.SEED_ASSETS_DIR
+    ? path.resolve(process.env.SEED_ASSETS_DIR)
+    : path.resolve(process.cwd(), 'seed-assets');
+
+  let restored = 0;
+  let updatedUrls = 0;
+
+  for (const article of DEMO_NEWS) {
+    const filename = article.image;
+    const source = path.join(assetsDir, filename);
+    let existing = await Media.findOne({ originalName: filename });
+
+    if (!existing && uploadedBy) {
+      let buffer: Buffer;
+      try {
+        buffer = await fs.readFile(source);
+      } catch {
+        continue;
+      }
+      const stored = await storage.save(buffer, filename);
+      existing = await Media.create({
+        filename: stored.storageKey.split('/').pop() ?? filename,
+        originalName: filename,
+        mimeType: 'image/png',
+        size: stored.size,
+        storageKey: stored.storageKey,
+        url: stored.url,
+        alt: '',
+        folder: 'news',
+        uploadedBy,
+      });
+      restored += 1;
+      continue;
+    }
+
+    if (existing) {
+      // 1. Ensure file exists on local disk
+      const target = path.join(env.storage.localDir, existing.storageKey);
+      let fileExists = false;
+      try {
+        await fs.access(target);
+        fileExists = true;
+      } catch {
+        fileExists = false;
+      }
+
+      if (!fileExists) {
+        try {
+          const buffer = await fs.readFile(source);
+          await fs.mkdir(path.dirname(target), { recursive: true });
+          await fs.writeFile(target, buffer);
+          restored += 1;
+        } catch {
+          logger.warn(`Could not restore seed artwork: ${source}`);
+        }
+      }
+
+      // 2. Ensure URL matches current PUBLIC_BASE_URL
+      const expectedUrl = storage.urlFor(existing.storageKey);
+      if (existing.url !== expectedUrl) {
+        existing.set('url', expectedUrl);
+        await existing.save();
+        updatedUrls += 1;
+      }
+    }
+  }
+
+  // Also update URLs for any other media records in MongoDB
+  const allMedia = await Media.find();
+  for (const media of allMedia) {
+    const expectedUrl = storage.urlFor(media.storageKey);
+    if (media.url !== expectedUrl) {
+      media.set('url', expectedUrl);
+      await media.save();
+      updatedUrls += 1;
+    }
+  }
+
+  if (restored > 0 || updatedUrls > 0) {
+    console.log(`  media         ${restored} missing files restored to disk, ${updatedUrls} URLs updated to current host`);
+  }
+}
+
 async function seedNewsImage(filename: string, uploadedBy: string): Promise<string | null> {
   const existing = await Media.findOne({ originalName: filename });
   if (existing) return String(existing._id);

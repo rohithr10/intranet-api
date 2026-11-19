@@ -14,9 +14,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed": "tsx src/seed/index.ts",
     "seed:reset": "tsx src/seed/index.ts --reset-admin",
+    "seed:media": "tsx src/seed/index.ts",
     "seed:prod": "node dist/seed/index.js",
     "seed:prod:demo": "node dist/seed/index.js --demo",
     "seed:prod:reset": "node dist/seed/index.js --reset-admin",
+    "seed:prod:media": "node dist/seed/index.js",
     "seed:demo": "tsx src/seed/index.ts --demo",
     "test": "vitest run",
     "test:watch": "vitest"
