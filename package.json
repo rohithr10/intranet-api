@@ -14,6 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed": "tsx src/seed/index.ts",
     "seed:prod": "node dist/seed/index.js",
+    "seed:prod:demo": "node dist/seed/index.js --demo",
     "seed:demo": "tsx src/seed/index.ts --demo",
     "test": "vitest run",
     "test:watch": "vitest"
