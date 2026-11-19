@@ -76,7 +76,7 @@ by hand with:
 | Setting | Value |
 | --- | --- |
 | Runtime | Node |
-| Build command | `npm ci && npm run build` |
+| Build command | `npm ci --include=dev && npm run build` |
 | Start command | `node dist/server.js` |
 | Health check path | `/api/health` |
 

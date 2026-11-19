@@ -10,7 +10,7 @@ services:
     plan: starter # a disk requires a paid plan; see the note on uploads below
     region: oregon # pick the one nearest your MongoDB
     branch: main
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: node dist/server.js
     # Render restarts the service if this stops answering.
     healthCheckPath: /api/health
@@ -39,9 +39,9 @@ services:
       - key: MONGODB_URI
         sync: false # mongodb+srv://user:password@cluster.mongodb.net/intranet
       - key: CORS_ORIGINS
-        sync: false # https://your-app.vercel.app  (comma-separated, no trailing slash)
+        value: https://intranet-ui.vercel.app
       - key: PUBLIC_BASE_URL
-        sync: false # https://intranet-api.onrender.com  (this service's own URL)
+        value: https://intranet-api-o98s.onrender.com
 
       # Cookies must be Secure over HTTPS. Use `none` only if the frontend is on
       # a different site than this API; `lax` is correct when they share a
@@ -49,7 +49,7 @@ services:
       - key: COOKIE_SECURE
         value: "true"
       - key: COOKIE_SAMESITE
-        sync: false # lax | none
+        value: lax
 
       - key: STORAGE_DRIVER
         value: local

@@ -115,8 +115,15 @@ async function seedSuperAdmin(roleId?: string): Promise<{ id: string; email: str
 
   const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) {
+    if (process.argv.includes('--reset-admin')) {
+      existing.set('passwordHash', await hashPassword(password));
+      existing.set('status', 'active');
+      await existing.save();
+      console.log(`  super admin   password updated for ${email} from .env`);
+      return { id: String(existing._id), email: existing.email };
+    }
     // Never silently reset the password of an account already in use.
-    console.log(`  super admin   already exists (${email}) — password left unchanged`);
+    console.log(`  super admin   already exists (${email}) — password left unchanged (run npm run seed:reset to update password)`);
     return { id: String(existing._id), email: existing.email };
   }
 
