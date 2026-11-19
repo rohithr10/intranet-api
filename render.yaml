@@ -1,0 +1,71 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploy with: New → Blueprint → point at this repository.
+# Everything marked `sync: false` must be filled in from the Render dashboard;
+# those are the values that must not live in version control.
+services:
+  - type: web
+    name: intranet-api
+    runtime: node
+    plan: starter # a disk requires a paid plan; see the note on uploads below
+    region: oregon # pick the one nearest your MongoDB
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/server.js
+    # Render restarts the service if this stops answering.
+    healthCheckPath: /api/health
+
+    # Uploaded media. Without a disk, Render's filesystem is wiped on every
+    # deploy and the Media Library fills up with records pointing at nothing.
+    # The alternative is object storage — see README "Media storage".
+    disk:
+      name: uploads
+      mountPath: /var/data/uploads
+      sizeGB: 1
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000 # Render's default; the app reads it from here
+
+      # Generated once by Render and then kept — never printed in a build log.
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      # Set these in the dashboard.
+      - key: MONGODB_URI
+        sync: false # mongodb+srv://user:password@cluster.mongodb.net/intranet
+      - key: CORS_ORIGINS
+        sync: false # https://your-app.vercel.app  (comma-separated, no trailing slash)
+      - key: PUBLIC_BASE_URL
+        sync: false # https://intranet-api.onrender.com  (this service's own URL)
+
+      # Cookies must be Secure over HTTPS. Use `none` only if the frontend is on
+      # a different site than this API; `lax` is correct when they share a
+      # domain, or when the frontend proxies /api to here.
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        sync: false # lax | none
+
+      - key: STORAGE_DRIVER
+        value: local
+      - key: STORAGE_LOCAL_DIR
+        value: /var/data/uploads # must match the disk mountPath above
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "8"
+      - key: ACCESS_TOKEN_TTL
+        value: 15m
+      - key: REFRESH_TOKEN_TTL
+        value: 7d
+      - key: BCRYPT_ROUNDS
+        value: "12"
+
+      # Only needed for the one-off seed run. Delete both afterwards.
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
