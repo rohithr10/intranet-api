@@ -30,6 +30,6 @@ export const updateContentSchema = createContentSchema.partial().refine(
 );
 
 export const publicDocumentsQuery = z.object({
-  country: z.string().trim().max(80).default('URBASER GROUP'),
+  country: z.string().trim().max(80).optional(),
   search: z.string().trim().max(200).optional(),
 });

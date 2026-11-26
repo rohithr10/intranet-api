@@ -64,7 +64,7 @@ export const DEMO_PEOPLE = [
  */
 export const DEMO_OPTIONS = [
   { name: 'Brand name', key: 'portal.brand_name', type: 'text' as const, defaultValue: 'urbaser', description: 'First word of the sidebar wordmark.', module: 'portal', isPublic: true },
-  { name: 'Brand suffix', key: 'portal.brand_suffix', type: 'text' as const, defaultValue: 'connect', description: 'Highlighted second word of the sidebar wordmark.', module: 'portal', isPublic: true },
+  { name: 'Brand suffix', key: 'portal.brand_suffix', type: 'text' as const, defaultValue: 'sumeet', description: 'Highlighted second word of the sidebar wordmark.', module: 'portal', isPublic: true },
   { name: 'Hero tagline', key: 'portal.hero_tagline', type: 'text' as const, defaultValue: 'BETTER, TOGETHER', description: 'Small label above the hero headline.', module: 'portal', isPublic: true },
   { name: 'Hero headline', key: 'portal.hero_title', type: 'text' as const, defaultValue: 'A world of possibilities.', description: 'First line of the hero headline.', module: 'portal', isPublic: true },
   { name: 'Hero headline accent', key: 'portal.hero_title_accent', type: 'text' as const, defaultValue: 'One connected team.', description: 'Second, highlighted line of the hero headline.', module: 'portal', isPublic: true },

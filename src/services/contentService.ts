@@ -54,8 +54,9 @@ export async function getContent(id: string) {
  * `category` is the folder name, so this is one query plus a group-by rather
  * than a separate folder collection.
  */
-export async function listPublicDocumentFolders(country: string, search?: string) {
-  const filter: Record<string, unknown> = { country, ...publicFilter() };
+export async function listPublicDocumentFolders(country?: string, search?: string) {
+  const filter: Record<string, unknown> = { ...publicFilter() };
+  if (country) filter.country = country;
   if (search) {
     const needle = new RegExp(escapeRegex(search), 'i');
     filter.$and = [{ $or: [{ title: needle }, { category: needle }, { summary: needle }] }];
@@ -69,7 +70,8 @@ export async function listPublicDocumentFolders(country: string, search?: string
   const folders = new Map<string, { name: string; country: string; updatedAt: Date; documents: unknown[] }>();
   for (const item of items) {
     const name = String(item.category);
-    const folder = folders.get(name) ?? { name, country, updatedAt: new Date(0), documents: [] };
+    const itemCountry = String(item.country || 'URBASER GROUP');
+    const folder = folders.get(name) ?? { name, country: country ?? itemCountry, updatedAt: new Date(0), documents: [] };
     const attachment = item.attachment as { url?: string; originalName?: string; mimeType?: string; size?: number } | null;
     folder.documents.push({
       id: String(item._id),

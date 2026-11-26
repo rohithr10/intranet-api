@@ -51,7 +51,7 @@ export const categories = asyncHandler(async (_req: Request, res: Response) => {
 /* ── Public endpoints: the portal's Documents section ───────────────────── */
 
 export const publicDocuments = asyncHandler(async (req: Request, res: Response) => {
-  const { country, search } = req.query as unknown as { country: string; search?: string };
+  const { country, search } = req.query as unknown as { country?: string; search?: string };
   const [folders, countries] = await Promise.all([
     contentService.listPublicDocumentFolders(country, search),
     contentService.listPublicCountries(),
