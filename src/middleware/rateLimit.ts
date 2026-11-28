@@ -46,3 +46,21 @@ export const uploadLimiter = rateLimit({
   skip: () => disabled,
   message: { success: false, message: 'Too many uploads, please try again later' },
 });
+
+/** Caps password-reset requests and token guesses per email/IP. */
+export const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => disabled,
+  keyGenerator: (req: Request) => {
+    const email = (req.body as { email?: unknown } | undefined)?.email;
+    return typeof email === 'string' && email ? `reset:${email.trim().toLowerCase()}` : `reset-ip:${req.ip}`;
+  },
+  message: {
+    success: false,
+    code: 'TOO_MANY_ATTEMPTS',
+    message: 'Too many password reset requests. Please try again in 15 minutes.',
+  },
+});

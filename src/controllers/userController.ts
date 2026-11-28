@@ -35,6 +35,16 @@ export const assignRole = asyncHandler(async (req: Request, res: Response) => {
   res.json({ success: true, data: { user }, message: 'Role assigned' });
 });
 
+export const createResetLink = asyncHandler(async (req: Request, res: Response) => {
+  const { sendEmail } = (req.body as { sendEmail?: boolean } | undefined) ?? {};
+  const result = await userService.createPasswordResetLink(req, req.params.id as string, { sendEmail });
+  res.json({
+    success: true,
+    data: result,
+    message: result.emailed ? 'Password reset link emailed and ready to copy' : 'Password reset link generated',
+  });
+});
+
 /** Public people directory behind the portal's Search / Directory dialog. */
 export const directory = asyncHandler(async (req: Request, res: Response) => {
   const query = req.query as unknown as { search?: string; field: 'name' | 'department' | 'country'; limit: number };

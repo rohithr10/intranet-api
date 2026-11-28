@@ -1,9 +1,13 @@
+import crypto from 'node:crypto';
 import type { Request, Response } from 'express';
 import { Types } from 'mongoose';
-import { User, verifyPassword } from '../models/User.js';
+import { env } from '../config/environment.js';
+import { User, hashPassword, verifyPassword } from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
 import { clearAuthCookies, setAuthCookies } from '../utils/cookies.js';
+import { isMailConfigured, sendPasswordResetEmail } from '../utils/mailer.js';
+import { logger } from '../utils/logger.js';
 import { issueCsrfCookie } from '../middleware/csrf.js';
 import { ALL_PERMISSIONS } from '../utils/permissions.js';
 import type { AccessTokenClaims, AuthContext } from '../types/domain.js';
@@ -203,9 +207,11 @@ export async function changeOwnPassword(
     throw ApiError.badRequest('Your current password is incorrect', { field: 'currentPassword' });
   }
 
-  const { hashPassword } = await import('../models/User.js');
   user.set('passwordHash', await hashPassword(newPassword));
   user.set('mustChangePassword', false);
+  user.set('passwordResetTokenHash', null);
+  user.set('passwordResetExpiresAt', null);
+  user.set('passwordResetRequestedAt', null);
   user.set('tokenVersion', (user.get('tokenVersion') ?? 0) + 1);
   await user.save({ validateModifiedOnly: true });
 
@@ -223,6 +229,123 @@ export async function changeOwnPassword(
     entity: 'User',
     entityId: String(user._id),
     description: `${user.name} changed their password`,
+  });
+}
+
+export function resolveAppBaseUrl(req: Request): string {
+  if (env.passwordReset.configuredAppUrl) return env.passwordReset.configuredAppUrl;
+  const origin = typeof req.headers.origin === 'string' ? req.headers.origin.replace(/\/$/, '') : '';
+  if (origin && env.corsOrigins.includes(origin)) return origin;
+  return env.passwordReset.defaultAppUrl;
+}
+
+export function hashResetToken(rawToken: string): string {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
+export function assignPasswordResetToken(
+  user: { set: (path: string, value: unknown) => unknown },
+  req: Request,
+): { resetUrl: string; expiresAt: Date } {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + env.passwordReset.ttlMinutes * 60_000);
+  user.set('passwordResetTokenHash', hashResetToken(rawToken));
+  user.set('passwordResetExpiresAt', expiresAt);
+
+  return {
+    resetUrl: `${resolveAppBaseUrl(req)}/reset-password?token=${rawToken}`,
+    expiresAt,
+  };
+}
+
+/**
+ * Initiates a password reset request from the sign-in page.
+ *
+ * Always responds identically whether or not the email matches an account, so
+ * the endpoint cannot be used to enumerate valid addresses.
+ */
+export async function requestPasswordReset(
+  req: Request,
+  email: string,
+): Promise<{ delivery: 'email' | 'admin' }> {
+  const mailEnabled = isMailConfigured();
+  const normalized = email.toLowerCase();
+  const user = await User.findOne({ email: normalized });
+
+  if (!user || user.status !== 'active') {
+    return { delivery: mailEnabled ? 'email' : 'admin' };
+  }
+
+  user.set('passwordResetRequestedAt', new Date());
+
+  if (mailEnabled) {
+    const { resetUrl } = assignPasswordResetToken(user, req);
+    await user.save({ validateModifiedOnly: true });
+    try {
+      await sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl,
+        expiresMinutes: env.passwordReset.ttlMinutes,
+      });
+    } catch (err) {
+      logger.error(`Failed to send password reset email to ${user.email}`, err);
+    }
+  } else {
+    await user.save({ validateModifiedOnly: true });
+  }
+
+  await recordActivity(req, {
+    action: 'auth.password.reset_requested',
+    entity: 'User',
+    entityId: String(user._id),
+    actorId: String(user._id),
+    actorEmail: user.email,
+    description: `${user.name} requested a password reset`,
+  });
+
+  return { delivery: mailEnabled ? 'email' : 'admin' };
+}
+
+/** Completes a password reset with a valid, unexpired one-time token. */
+export async function resetPasswordWithToken(
+  req: Request,
+  token: string,
+  newPassword: string,
+): Promise<void> {
+  const tokenHash = hashResetToken(token);
+  const user = await User.findOne({
+    passwordResetTokenHash: tokenHash,
+    passwordResetExpiresAt: { $gt: new Date() },
+  }).select('+passwordHash +passwordResetTokenHash +passwordResetExpiresAt');
+
+  if (!user) {
+    throw ApiError.badRequest('This password reset link is invalid or has expired', {
+      code: 'INVALID_RESET_TOKEN',
+    });
+  }
+
+  if (user.status !== 'active') {
+    throw ApiError.forbidden('This account is not active. Contact an administrator.', {
+      code: 'ACCOUNT_DISABLED',
+    });
+  }
+
+  user.set('passwordHash', await hashPassword(newPassword));
+  user.set('mustChangePassword', false);
+  user.set('passwordResetTokenHash', null);
+  user.set('passwordResetExpiresAt', null);
+  user.set('passwordResetRequestedAt', null);
+  user.set('tokenVersion', (user.get('tokenVersion') ?? 0) + 1);
+  await user.save({ validateModifiedOnly: true });
+
+  await recordActivity(req, {
+    action: 'auth.password.reset',
+    entity: 'User',
+    entityId: String(user._id),
+    actorId: String(user._id),
+    actorEmail: user.email,
+    description: `${user.name} reset their password via reset link`,
   });
 }
 

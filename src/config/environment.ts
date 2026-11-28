@@ -37,6 +37,18 @@ const schema = z.object({
   STORAGE_LOCAL_DIR: z.string().default('uploads'),
   PUBLIC_BASE_URL: z.string().default('http://127.0.0.1:4000'),
   MAX_UPLOAD_SIZE_MB: z.coerce.number().positive().max(100).default(8),
+
+  APP_PUBLIC_URL: z.string().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
+  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
 });
 
 /**
@@ -49,7 +61,9 @@ const schema = z.object({
  */
 const source = Object.fromEntries(
   Object.entries(process.env).map(([key, value]) =>
-    typeof value === 'string' && key !== 'SUPER_ADMIN_PASSWORD' ? [key, value.trim()] : [key, value],
+    typeof value === 'string' && key !== 'SUPER_ADMIN_PASSWORD' && key !== 'SMTP_PASS'
+      ? [key, value.trim()]
+      : [key, value],
   ),
 );
 
@@ -64,15 +78,21 @@ if (!parsed.success) {
 
 const raw = parsed.data;
 const isTest = raw.NODE_ENV === 'test';
+const corsOrigins = raw.CORS_ORIGINS.split(',')
+  .map((o) => o.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+const publicBaseUrl = raw.PUBLIC_BASE_URL.replace(/\/$/, '');
+const smtpHost = raw.SMTP_HOST || undefined;
+const smtpUser = raw.SMTP_USER || undefined;
+const smtpPass = raw.SMTP_PASS || undefined;
+const smtpFrom = raw.SMTP_FROM || smtpUser || undefined;
 
 export const env = {
   nodeEnv: raw.NODE_ENV,
   isProduction: raw.NODE_ENV === 'production',
   isTest,
   port: raw.PORT,
-  corsOrigins: raw.CORS_ORIGINS.split(',')
-    .map((o) => o.trim().replace(/\/$/, ''))
-    .filter(Boolean),
+  corsOrigins,
 
   mongoUri: isTest ? (raw.MONGODB_URI_TEST ?? `${raw.MONGODB_URI}_test`) : raw.MONGODB_URI,
 
@@ -98,8 +118,24 @@ export const env = {
   storage: {
     driver: raw.STORAGE_DRIVER,
     localDir: path.resolve(process.cwd(), raw.STORAGE_LOCAL_DIR),
-    publicBaseUrl: raw.PUBLIC_BASE_URL.replace(/\/$/, ''),
+    publicBaseUrl,
     maxUploadBytes: raw.MAX_UPLOAD_SIZE_MB * 1024 * 1024,
+  },
+
+  smtp: {
+    enabled: Boolean(smtpHost && smtpFrom),
+    host: smtpHost,
+    port: raw.SMTP_PORT,
+    secure: raw.SMTP_SECURE,
+    user: smtpUser,
+    pass: smtpPass,
+    from: smtpFrom,
+  },
+
+  passwordReset: {
+    ttlMinutes: raw.PASSWORD_RESET_TTL_MINUTES,
+    configuredAppUrl: raw.APP_PUBLIC_URL ? raw.APP_PUBLIC_URL.replace(/\/$/, '') : undefined,
+    defaultAppUrl: corsOrigins[0] ?? publicBaseUrl,
   },
 
   /** Stack traces are helpful locally and an information leak in production. */

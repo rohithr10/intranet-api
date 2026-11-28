@@ -9,6 +9,7 @@ import {
   assignRoleSchema,
   createUserSchema,
   listUsersQuery,
+  resetLinkSchema,
   updateUserSchema,
 } from '../validators/userValidators.js';
 
@@ -33,6 +34,13 @@ router.patch(
   validateRequest(idParam, 'params'),
   validateRequest(assignRoleSchema),
   userController.assignRole,
+);
+router.post(
+  '/:id/reset-link',
+  authorize(PERMISSIONS.USERS_EDIT),
+  validateRequest(idParam, 'params'),
+  validateRequest(resetLinkSchema),
+  userController.createResetLink,
 );
 router.delete('/:id', authorize(PERMISSIONS.USERS_DELETE), validateRequest(idParam, 'params'), userController.remove);
 

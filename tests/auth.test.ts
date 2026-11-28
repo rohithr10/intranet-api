@@ -171,4 +171,55 @@ describe('authentication', () => {
       newPassword: 'short',
     }).expect(422);
   });
+
+  it('records forgot-password requests identically for known and unknown emails', async () => {
+    const known = await request(app)
+      .post('/api/auth/forgot-password')
+      .send({ email: 'admin@test.local' })
+      .expect(200);
+    const unknown = await request(app)
+      .post('/api/auth/forgot-password')
+      .send({ email: 'nobody@test.local' })
+      .expect(200);
+
+    expect(known.body.message).toBe(unknown.body.message);
+    expect(known.body.data.delivery).toBe('admin');
+
+    const stored = await User.findOne({ email: 'admin@test.local' }).lean();
+    expect(stored?.passwordResetRequestedAt).not.toBeNull();
+  });
+
+  it('lets an authorized admin issue a one-time reset link and resets the user password', async () => {
+    const member = await createUser({ email: 'member@test.local', roleKey: 'viewer', name: 'Team Member' });
+    const adminSession = await signIn(app, 'admin@test.local');
+    const memberSession = await signIn(app, 'member@test.local');
+
+    const linkRes = await post(adminSession, `/api/users/${member.id}/reset-link`, {}).expect(200);
+    const resetUrl = new URL(linkRes.body.data.resetUrl as string);
+    const token = resetUrl.searchParams.get('token') ?? '';
+    expect(token.length).toBeGreaterThan(20);
+
+    // Raw token is never stored directly in MongoDB.
+    const dbUser = await User.findById(member.id).select('+passwordResetTokenHash').lean();
+    expect(dbUser?.passwordResetTokenHash).toBeDefined();
+    expect(dbUser?.passwordResetTokenHash).not.toBe(token);
+
+    // Completing the reset updates the password, invalidates prior sessions, and consumes the token.
+    await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token, newPassword: 'ResetPassword123' })
+      .expect(200);
+
+    await memberSession.agent.get('/api/auth/me').expect(401);
+    await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'member@test.local', password: 'ResetPassword123' })
+      .expect(200);
+
+    // Token cannot be reused.
+    await request(app)
+      .post('/api/auth/reset-password')
+      .send({ token, newPassword: 'AnotherPassword123' })
+      .expect(400);
+  });
 });

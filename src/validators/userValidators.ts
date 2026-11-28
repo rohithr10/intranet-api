@@ -36,4 +36,11 @@ export const directoryQuery = z.object({
 
 export const assignRoleSchema = z.object({ role: objectId });
 
+export const resetLinkSchema = z
+  .object({
+    sendEmail: z.boolean().optional(),
+  })
+  .optional()
+  .default({});
+
 export { booleanFlag };
