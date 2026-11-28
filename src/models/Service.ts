@@ -18,6 +18,11 @@ const serviceSchema = new Schema(
       match: [/^[a-z0-9-]+$/, 'Service keys may contain lowercase letters, numbers and hyphens'],
     },
     description: { type: String, trim: true, maxlength: 600, default: '' },
+    details: { type: String, trim: true, maxlength: 4000, default: '' },
+    features: { type: [String], default: [] },
+    departmentOwner: { type: String, trim: true, maxlength: 120, default: '' },
+    contactEmail: { type: String, trim: true, maxlength: 160, default: '' },
+    thumbnailUrl: { type: String, trim: true, maxlength: 500, default: '' },
     /** lucide-react icon name, e.g. "ShieldCheck" — resolved by the frontend. */
     icon: { type: String, trim: true, default: 'LayoutGrid' },
     category: { type: String, trim: true, default: 'GENERAL', index: true },

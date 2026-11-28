@@ -78,6 +78,11 @@ export async function listVisibleServices(auth: AuthContext | undefined, search?
     name: service.name,
     key: service.key,
     description: service.description ?? '',
+    details: service.details ?? '',
+    features: service.features ?? [],
+    departmentOwner: service.departmentOwner ?? '',
+    contactEmail: service.contactEmail ?? '',
+    thumbnailUrl: service.thumbnailUrl ?? '',
     icon: service.icon ?? 'LayoutGrid',
     category: service.category ?? 'GENERAL',
     tab: service.tab ?? 'GENERAL',
@@ -100,6 +105,11 @@ export interface ServiceInput {
   name: string;
   key?: string;
   description?: string;
+  details?: string;
+  features?: string[];
+  departmentOwner?: string;
+  contactEmail?: string;
+  thumbnailUrl?: string;
   icon?: string;
   category?: string;
   tab?: string;
@@ -151,7 +161,23 @@ export async function updateService(req: Request, id: string, input: Partial<Ser
     service.set('roles', input.roles);
   }
 
-  for (const field of ['name', 'description', 'icon', 'category', 'tab', 'url', 'status', 'visibility', 'config', 'order'] as const) {
+  for (const field of [
+    'name',
+    'description',
+    'details',
+    'features',
+    'departmentOwner',
+    'contactEmail',
+    'thumbnailUrl',
+    'icon',
+    'category',
+    'tab',
+    'url',
+    'status',
+    'visibility',
+    'config',
+    'order',
+  ] as const) {
     if (input[field] !== undefined) service.set(field, input[field]);
   }
   service.set('updatedBy', req.auth?.userId ?? null);

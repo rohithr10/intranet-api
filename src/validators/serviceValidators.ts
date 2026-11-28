@@ -20,11 +20,16 @@ export const createServiceSchema = z.object({
     .max(60)
     .optional(),
   description: z.string().trim().max(600).optional(),
+  details: z.string().trim().max(4000).optional(),
+  features: z.array(z.string().trim().max(240)).max(50).optional(),
+  departmentOwner: z.string().trim().max(120).optional(),
+  contactEmail: z.string().trim().email('Enter a valid email').max(160).or(z.literal('')).optional(),
+  thumbnailUrl: z.string().trim().max(500).optional(),
   /** A lucide-react icon name; the frontend falls back when it cannot resolve it. */
   icon: z.string().trim().max(60).optional(),
   category: z.string().trim().max(60).optional(),
   tab: z.string().trim().max(60).optional(),
-  url: z.string().trim().url('Enter a valid URL').max(500).or(z.literal('')).optional(),
+  url: z.string().trim().url('Enter a valid URL').max(500).or(z.literal('#')).or(z.literal('')).optional(),
   status: statusEnum.optional(),
   visibility: visibilityEnum.optional(),
   roles: z.array(objectId).max(50).optional(),
