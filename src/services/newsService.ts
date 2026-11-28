@@ -14,8 +14,8 @@ import type { NewsScope, PublishStatus } from '../types/domain.js';
 const POPULATE = [
   { path: 'author', select: 'name email' },
   { path: 'tags', select: 'name slug color' },
-  { path: 'featuredImage', select: 'url alt originalName' },
-  { path: 'images', select: 'url alt originalName' },
+  { path: 'featuredImage', select: 'url alt originalName mimeType size' },
+  { path: 'images', select: 'url alt originalName mimeType size' },
 ] as const;
 
 export interface NewsListQuery {
