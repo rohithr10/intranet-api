@@ -25,6 +25,9 @@ const userSchema = new Schema(
     /** Shown in the people directory; false keeps an account out of it. */
     showInDirectory: { type: Boolean, default: true },
     mustChangePassword: { type: Boolean, default: false },
+    passwordResetTokenHash: { type: String, default: null, select: false },
+    passwordResetExpiresAt: { type: Date, default: null, select: false },
+    passwordResetRequestedAt: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },
     /**
      * Bumped on logout-everywhere, password change, deactivation or role change
@@ -42,6 +45,8 @@ const userSchema = new Schema(
       transform(_doc, ret: Record<string, unknown>) {
         delete ret.passwordHash;
         delete ret.tokenVersion;
+        delete ret.passwordResetTokenHash;
+        delete ret.passwordResetExpiresAt;
         return ret;
       },
     },

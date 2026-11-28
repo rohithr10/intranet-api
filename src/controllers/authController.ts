@@ -33,3 +33,22 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
   await authService.changeOwnPassword(req, res, currentPassword, newPassword);
   res.json({ success: true, message: 'Password updated' });
 });
+
+export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body as { email: string };
+  const result = await authService.requestPasswordReset(req, email);
+  res.json({
+    success: true,
+    data: result,
+    message:
+      result.delivery === 'email'
+        ? 'If an active account exists for that email, a password reset link has been sent.'
+        : 'If an active account exists for that email, your reset request has been recorded for an administrator.',
+  });
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { token, newPassword } = req.body as { token: string; newPassword: string };
+  await authService.resetPasswordWithToken(req, token, newPassword);
+  res.json({ success: true, message: 'Password has been reset. You can now sign in.' });
+});

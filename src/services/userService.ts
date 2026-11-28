@@ -1,13 +1,18 @@
 import type { Request } from 'express';
+import { env } from '../config/environment.js';
 import { Role } from '../models/Role.js';
 import { User, hashPassword } from '../models/User.js';
 import { ApiError } from '../utils/ApiError.js';
+import { isMailConfigured, sendPasswordResetEmail } from '../utils/mailer.js';
+import { logger } from '../utils/logger.js';
 import { escapeRegex } from '../utils/sanitize.js';
 import { PERMISSIONS } from '../utils/permissions.js';
 import { recordActivity } from './activityService.js';
+import { assignPasswordResetToken } from './authService.js';
 import type { UserStatus } from '../types/domain.js';
 
-const PUBLIC_FIELDS = 'name email role status department country jobTitle phone showInDirectory lastLoginAt mustChangePassword createdAt updatedAt';
+const PUBLIC_FIELDS =
+  'name email role status department country jobTitle phone showInDirectory lastLoginAt mustChangePassword passwordResetRequestedAt createdAt updatedAt';
 
 export interface UserListQuery {
   page: number;
@@ -132,6 +137,9 @@ export async function updateUser(req: Request, id: string, input: UpdateUserInpu
 
   if (input.password) {
     user.set('passwordHash', await hashPassword(input.password));
+    user.set('passwordResetTokenHash', null);
+    user.set('passwordResetExpiresAt', null);
+    user.set('passwordResetRequestedAt', null);
     user.set('tokenVersion', (user.get('tokenVersion') ?? 0) + 1);
   }
 
@@ -155,6 +163,54 @@ export async function updateUser(req: Request, id: string, input: UpdateUserInpu
   });
 
   return getUser(String(user._id));
+}
+
+export async function createPasswordResetLink(
+  req: Request,
+  id: string,
+  options: { sendEmail?: boolean } = {},
+): Promise<{ resetUrl: string; expiresAt: Date; emailed: boolean; mailConfigured: boolean }> {
+  const actor = req.auth;
+  if (!actor) throw ApiError.unauthorized();
+
+  const user = await User.findById(id).populate('role', 'name key isSuperAdmin');
+  if (!user) throw ApiError.notFound('User not found');
+
+  const targetIsSuperAdmin = Boolean((user.role as { isSuperAdmin?: boolean } | null)?.isSuperAdmin);
+  if (targetIsSuperAdmin && !actor.isSuperAdmin) {
+    throw ApiError.forbidden('Only a super admin can reset a super admin account');
+  }
+
+  if (user.status !== 'active') {
+    throw ApiError.badRequest('Activate this account before issuing a password reset link');
+  }
+
+  const { resetUrl, expiresAt } = assignPasswordResetToken(user, req);
+  await user.save({ validateModifiedOnly: true });
+
+  const mailConfigured = isMailConfigured();
+  let emailed = false;
+  if (options.sendEmail && mailConfigured) {
+    try {
+      emailed = await sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl,
+        expiresMinutes: env.passwordReset.ttlMinutes,
+      });
+    } catch (err) {
+      logger.error(`Failed to email admin reset link to ${user.email}`, err);
+    }
+  }
+
+  await recordActivity(req, {
+    action: 'users.reset_link',
+    entity: 'User',
+    entityId: String(user._id),
+    description: `Generated password reset link for ${user.name}${emailed ? ' and sent email' : ''}`,
+  });
+
+  return { resetUrl, expiresAt, emailed, mailConfigured };
 }
 
 export async function deleteUser(req: Request, id: string) {
